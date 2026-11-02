@@ -1,0 +1,6 @@
+# Flyway configuration example. Replace placeholders in a private local config; do not commit real credentials.
+flyway.url=jdbc:postgresql://CHANGE_ME:5432/CHANGE_ME
+flyway.user=CHANGE_ME
+flyway.password=CHANGE_ME
+flyway.locations=filesystem:db/migrations
+flyway.validateOnMigrate=true
