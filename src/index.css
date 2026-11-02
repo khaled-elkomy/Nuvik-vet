@@ -1,0 +1,55 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  /* Shared structural patterns: white surfaces stay dominant while borders make
+     clinical records and time-based rows easy to scan. */
+  .clinic-card {
+    @apply bg-white border border-ink-200 rounded-xl2 shadow-card;
+  }
+
+  .clinic-row {
+    @apply border-b border-ink-200 last:border-b-0;
+  }
+
+  /* Existing major surfaces share these utility classes. Give them the same
+     quiet boundary without introducing a new colored-card treatment. */
+  .bg-white.rounded-xl2.shadow-card {
+    @apply border border-ink-200;
+  }
+}
+
+html, body {
+  font-family: 'Tajawal', system-ui, sans-serif;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #C2CECB transparent;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background-color: #C2CECB;
+  border-radius: 8px;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-toast-in {
+  animation: toast-in 0.2s ease-out;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-fade-in {
+  animation: fade-in 0.15s ease-out;
+}

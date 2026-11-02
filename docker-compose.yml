@@ -1,0 +1,90 @@
+name: nuvik-vet
+
+services:
+  nuvik-vet-db:
+    image: postgres:16-alpine
+    container_name: nuvik-vet-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${NUVIK_POSTGRES_USER:?Set NUVIK_POSTGRES_USER in .env.nuvik}
+      POSTGRES_PASSWORD: ${NUVIK_POSTGRES_PASSWORD:?Set NUVIK_POSTGRES_PASSWORD in .env.nuvik}
+      POSTGRES_DB: ${NUVIK_POSTGRES_DB:?Set NUVIK_POSTGRES_DB in .env.nuvik}
+    volumes:
+      - nuvik_vet_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - nuvik-vet-net
+
+  nuvik-vet-api:
+    container_name: nuvik-vet-api
+    build: ./server
+    restart: unless-stopped
+    depends_on:
+      nuvik-vet-db:
+        condition: service_healthy
+    environment:
+      PORT: 4108
+      DATABASE_URL: postgres://${NUVIK_POSTGRES_USER:?Set NUVIK_POSTGRES_USER in .env.nuvik}:${NUVIK_POSTGRES_PASSWORD:?Set NUVIK_POSTGRES_PASSWORD in .env.nuvik}@nuvik-vet-db:5432/${NUVIK_POSTGRES_DB:?Set NUVIK_POSTGRES_DB in .env.nuvik}
+      JWT_SECRET: ${NUVIK_JWT_SECRET:?Set NUVIK_JWT_SECRET in .env.nuvik}
+      JWT_ISSUER: nuvik-vet
+      JWT_AUDIENCE: nuvik-vet-api
+      JWT_EXPIRES_IN: 12h
+      CLIENT_ORIGIN: http://localhost:5178,http://127.0.0.1:5178,http://localhost:8090,http://127.0.0.1:8090,https://localhost:8449,https://127.0.0.1:8449
+    ports:
+      - "127.0.0.1:4108:4108"
+    volumes:
+      - nuvik_vet_uploads:/app/uploads
+    networks:
+      - nuvik-vet-net
+
+  nuvik-vet-web:
+    container_name: nuvik-vet-web
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    restart: unless-stopped
+    environment:
+      VITE_API_URL: /api
+      VITE_SOCKET_URL: ""
+      VITE_AUTH_STORAGE_KEY: nuvik_vet_auth_token
+      VITE_DEV_PROXY_TARGET: http://nuvik-vet-api:4108
+    ports:
+      - "127.0.0.1:5178:5178"
+    depends_on:
+      - nuvik-vet-api
+    networks:
+      - nuvik-vet-net
+
+  nuvik-vet-nginx:
+    image: nginx:1.27-alpine
+    container_name: nuvik-vet-nginx
+    restart: unless-stopped
+    depends_on:
+      - nuvik-vet-web
+      - nuvik-vet-api
+    ports:
+      - "127.0.0.1:8090:80"
+      - "127.0.0.1:8449:443"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+      - ./nginx/https.conf:/etc/nginx/optional-https.conf:ro
+      - ./nginx/proxy-routes.conf:/etc/nginx/conf.d/nuvik-vet-routes.inc:ro
+      - ./nginx/enable-https-if-certs.sh:/docker-entrypoint.d/40-enable-https-if-certs.sh:ro
+    networks:
+      - nuvik-vet-net
+
+networks:
+  nuvik-vet-net:
+    name: nuvik-vet-net
+    driver: bridge
+
+volumes:
+  nuvik_vet_pgdata:
+    name: nuvik_vet_pgdata
+  nuvik_vet_uploads:
+    name: nuvik_vet_uploads

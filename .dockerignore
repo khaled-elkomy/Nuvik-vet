@@ -1,0 +1,14 @@
+.git
+.env
+.env.*
+!.env.example
+node_modules
+dist
+*.log
+*.tsbuildinfo
+server/.env
+server/node_modules
+server/dist
+server/uploads
+nginx/certs/*.key
+nginx/certs/*.crt
