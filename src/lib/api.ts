@@ -105,11 +105,24 @@ export const catalogApi = {
   products: (q = '') => request<any[]>(`/products?q=${encodeURIComponent(q)}`),
   product: (id: string) => request<any>(`/products/${encodeURIComponent(id)}`),
   barcode: (barcode: string) => request<any>(`/products/barcode/${encodeURIComponent(barcode)}`),
+  lots: (variantId: string) => request<any[]>(`/variants/${encodeURIComponent(variantId)}/lots`),
   createProduct: (data: any) => request<any>('/products', { method: 'POST', body: JSON.stringify(data) }),
   updateProduct: (id: string, data: any) => request<any>(`/products/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deactivateProduct: (id: string) => request<void>(`/products/${encodeURIComponent(id)}/deactivate`, { method: 'PATCH' }),
   addVariant: (id: string, data: any) => request<any>(`/products/${encodeURIComponent(id)}/variants`, { method: 'POST', body: JSON.stringify(data) }),
   openingStock: (variantId: string, data: any) => request<any>(`/products/${encodeURIComponent(variantId)}/opening-stock`, { method: 'POST', body: JSON.stringify(data) }),
+};
+
+export const posApi = {
+  shift: () => request<any>('/pos/shift'),
+  openShift: (openingCash: string) => request<any>('/pos/shifts/open', { method: 'POST', body: JSON.stringify({ openingCash }) }),
+  closeShift: (shiftId: string, countedCash: string) => request<any>(`/pos/shifts/${encodeURIComponent(shiftId)}/close`, { method: 'POST', body: JSON.stringify({ countedCash }) }),
+  finalizeSale: (data: any, idempotencyKey: string) => request<any>('/pos/sales', { method: 'POST', headers: { 'Idempotency-Key': idempotencyKey }, body: JSON.stringify(data) }),
+  invoices: (q = '') => request<any[]>(`/invoices?q=${encodeURIComponent(q)}`),
+  invoice: (id: string) => request<any>(`/invoices/${encodeURIComponent(id)}`),
+  balance: (customerId: string) => request<{ balance: string; currency: string }>(`/customers/${encodeURIComponent(customerId)}/balance`),
+  openInvoices: (customerId: string) => request<any[]>(`/customers/${encodeURIComponent(customerId)}/open-invoices`),
+  receivePayment: (customerId: string, data: { amount: string; method: string }, key?: string) => request<any>(`/customers/${encodeURIComponent(customerId)}/receive-payment`, { method: 'POST', headers: key ? { 'Idempotency-Key': key } : undefined, body: JSON.stringify(data) }),
 };
 
 // ===== Patients =====

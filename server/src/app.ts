@@ -6,6 +6,7 @@ import { authRouter } from './routes/auth.routes.js';
 import { usersRouter } from './routes/users.routes.js';
 import { customersAnimalsRouter } from './routes/customersAnimals.routes.js';
 import { catalogRouter } from './routes/catalog.routes.js';
+import { posRouter } from './routes/pos.routes.js';
 
 export function createApp() {
   const app = express();
@@ -23,6 +24,7 @@ export function createApp() {
   app.use('/api/users', usersRouter);
   app.use('/api', customersAnimalsRouter);
   app.use('/api', catalogRouter);
+  app.use('/api', posRouter);
   // Legacy Human Clinic routers are intentionally not mounted until rewired to the new schema.
   app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     console.error('API request failed', err);

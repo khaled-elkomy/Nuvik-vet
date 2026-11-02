@@ -1,10 +1,12 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Activity, UsersRound, ShoppingBasket, Settings, UserCog, LogOut, X } from 'lucide-react';
+import { Activity, UsersRound, ShoppingBasket, Settings, UserCog, LogOut, X, ReceiptText, ScanLine } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
 const items = [
   { label: 'العملاء والحيوانات', icon: UsersRound, permissions: ['customers.animals.manage', 'clinical.records.read'], to: '/customers' },
   { label: 'الكتالوج والمخزون', icon: ShoppingBasket, permissions: ['catalog.read', 'catalog.prices.manage', 'goods_receipts.post', 'invoices.draft.manage', 'invoices.finalize'], to: '/products' },
+  { label: 'نقطة البيع', icon: ScanLine, permissions: ['invoices.finalize'], to: '/pos' },
+  { label: 'الفواتير', icon: ReceiptText, permissions: ['invoices.finalize', 'invoices.draft.manage', 'payments.receive'], to: '/invoices' },
   { label: 'الإعدادات', icon: Settings, permissions: ['settings.manage'], soon: true },
   { label: 'المستخدمون', icon: UserCog, permissions: ['users.manage'], to: '/users' },
 ];

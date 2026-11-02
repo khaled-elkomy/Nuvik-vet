@@ -7,6 +7,8 @@ import Layout from './components/Layout';
 import Users from './pages/Users';
 import Customers from './pages/Customers';
 import Products from './pages/Products';
+import Pos from './pages/Pos';
+import Invoices from './pages/Invoices';
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const { isAuthenticated, authLoading } = useApp();
@@ -32,6 +34,18 @@ function CatalogManagement() {
   return <Products />;
 }
 
+function PointOfSale() {
+  const { currentUser } = useApp();
+  if (!currentUser?.permissions.includes('invoices.finalize')) return <Navigate to="/no-access" replace />;
+  return <Pos />;
+}
+
+function InvoiceManagement() {
+  const { currentUser } = useApp();
+  if (!currentUser?.permissions.some((p) => ['invoices.finalize', 'invoices.draft.manage', 'payments.receive'].includes(p))) return <Navigate to="/no-access" replace />;
+  return <Invoices />;
+}
+
 function Landing() {
   const { currentUser } = useApp();
   return <Navigate to={currentUser?.permissions.includes('users.manage') ? '/users' : '/no-access'} replace />;
@@ -48,6 +62,8 @@ export default function App() {
       <Route path="/users" element={<RequireAuth><UserManagement /></RequireAuth>} />
       <Route path="/customers" element={<RequireAuth><CustomersManagement /></RequireAuth>} />
       <Route path="/products" element={<RequireAuth><CatalogManagement /></RequireAuth>} />
+      <Route path="/pos" element={<RequireAuth><PointOfSale /></RequireAuth>} />
+      <Route path="/invoices" element={<RequireAuth><InvoiceManagement /></RequireAuth>} />
       <Route path="/no-access" element={<RequireAuth><NoAccess /></RequireAuth>} />
       <Route path="/" element={<RequireAuth><Landing /></RequireAuth>} />
       <Route path="*" element={<RequireAuth><Landing /></RequireAuth>} />

@@ -54,6 +54,14 @@ catalogRouter.get('/products/barcode/:barcode', readCatalog, async (req, res) =>
   res.json(result.rows[0]);
 });
 
+catalogRouter.get('/variants/:variantId/lots', readCatalog, async (req, res) => {
+  const variant = await pool.query(`SELECT v.id,p.track_lots FROM product_variants v JOIN products p ON p.id=v.product_id AND p.clinic_id=v.clinic_id AND p.branch_id=v.branch_id WHERE v.id=$1 AND v.clinic_id=$2 AND v.branch_id=$3 AND v.active AND p.active`, [req.params.variantId, req.auth!.clinicId, req.auth!.branchId]);
+  if (!variant.rows[0]) return res.status(404).json({ error: 'المتغير غير موجود' });
+  if (!variant.rows[0].track_lots) return res.json([]);
+  const lots = await pool.query(`SELECT l.id,l.lot_number AS "lotNumber",l.expiry_date AS "expiryDate",COALESCE(sb.on_hand,0)::text AS "onHand" FROM inventory_lots l LEFT JOIN stock_balances sb ON sb.clinic_id=l.clinic_id AND sb.branch_id=l.branch_id AND sb.location_id=l.location_id AND sb.variant_id=l.variant_id AND sb.lot_id=l.id WHERE l.clinic_id=$1 AND l.branch_id=$2 AND l.variant_id=$3 AND (l.expiry_date IS NULL OR l.expiry_date>=CURRENT_DATE) ORDER BY l.expiry_date NULLS LAST,l.received_at,l.id`, [req.auth!.clinicId, req.auth!.branchId, req.params.variantId]);
+  res.json(lots.rows);
+});
+
 catalogRouter.get('/products/:productId', readCatalog, async (req, res) => {
   const result = await pool.query(
     `SELECT p.id,p.code,p.name,p.category,p.description,p.is_service AS "isService",p.track_lots AS "trackLots",p.default_unit_price::text AS "defaultUnitPrice",p.currency,p.active

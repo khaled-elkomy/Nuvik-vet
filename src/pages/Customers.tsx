@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Plus, Search, PawPrint, UserRound, Edit2, UserX } from 'lucide-react';
 import Layout from '../components/Layout';
 import Modal from '../components/Modal';
-import { animalsApi, customersApi, speciesApi } from '../lib/api';
+import { animalsApi, customersApi, posApi, speciesApi } from '../lib/api';
 import { useApp } from '../context/AppContext';
 
 const emptyCustomer = { name: '', phone: '', email: '', address: '', notes: '' };
@@ -21,13 +21,20 @@ export default function Customers() {
   const [animalOpen, setAnimalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [balance, setBalance] = useState('0.00');
+  const [balanceCurrency, setBalanceCurrency] = useState('');
+  const [openInvoices, setOpenInvoices] = useState<any[]>([]);
+  const [receiveOpen, setReceiveOpen] = useState(false);
+  const [receiveForm, setReceiveForm] = useState({ amount: '', method: 'cash' });
   const canWrite = currentUser?.permissions.includes('customers.animals.manage') ?? false;
   const canManageReference = currentUser?.permissions.includes('settings.manage') ?? false;
+  const canReceive = currentUser?.permissions.includes('payments.receive') ?? false;
 
   const refresh = useCallback(async () => { setRows(await customersApi.list(query)); }, [query]);
   useEffect(() => { refresh().catch((e) => pushToast(e.message, 'error')); }, [refresh, pushToast]);
   useEffect(() => { speciesApi.list().then(setSpecies).catch((e) => pushToast(e.message, 'error')); }, [pushToast]);
   useEffect(() => { if (animalForm.speciesId) speciesApi.breeds(animalForm.speciesId).then(setBreeds).catch((e) => pushToast(e.message, 'error')); else setBreeds([]); }, [animalForm.speciesId, pushToast]);
+  useEffect(() => { if (selected?.id && canReceive) Promise.all([posApi.balance(selected.id), posApi.openInvoices(selected.id)]).then(([b, invoices]) => { setBalance(b.balance); setBalanceCurrency(b.currency); setOpenInvoices(invoices); }).catch((e) => pushToast(e.message, 'error')); }, [selected?.id, canReceive, pushToast]);
 
   async function openCustomer(id: string) {
     try { setSelected(await customersApi.get(id)); setAnimal(null); }
@@ -44,6 +51,11 @@ export default function Customers() {
   async function deactivateCustomer() {
     if (!selected || !window.confirm('إيقاف هذا العميل؟ ستبقى سجلاته محفوظة.')) return;
     try { await customersApi.deactivate(selected.id); setSelected(null); await refresh(); pushToast('تم إيقاف العميل'); } catch (e) { pushToast((e as Error).message, 'error'); }
+  }
+  async function receivePayment(event: FormEvent) {
+    event.preventDefault(); if (!selected) return; setBusy(true);
+    try { await posApi.receivePayment(selected.id, receiveForm, crypto.randomUUID()); setReceiveOpen(false); setReceiveForm({ amount: '', method: 'cash' }); const [b, invoices] = await Promise.all([posApi.balance(selected.id), posApi.openInvoices(selected.id)]); setBalance(b.balance); setBalanceCurrency(b.currency); setOpenInvoices(invoices); pushToast('تم تسجيل الدفعة وتوزيعها على الفواتير الأقدم أولًا'); }
+    catch (e) { pushToast((e as Error).message, 'error'); } finally { setBusy(false); }
   }
   async function saveAnimal(event: FormEvent) {
     event.preventDefault(); if (!selected) return; setBusy(true);
@@ -85,6 +97,7 @@ export default function Customers() {
           </div>
           <div className="mt-6 flex items-center justify-between"><h3 className="font-bold text-ink-800 flex items-center gap-2"><PawPrint size={18} />الحيوانات</h3>{canWrite && <button onClick={() => setAnimalOpen(true)} className="bg-brand-600 text-white rounded-lg px-3 py-2 text-sm inline-flex items-center gap-1"><Plus size={16} />حيوان</button>}</div>
           <div className="mt-3 grid md:grid-cols-2 gap-3">{(selected.animals || []).map((item: any) => <button key={item.id} onClick={async () => { try { setAnimal(await animalsApi.get(item.id)); } catch (e) { pushToast((e as Error).message, 'error'); } }} className="text-right border border-ink-100 rounded-xl p-4 hover:border-brand-300"><p className="font-semibold text-ink-800">{item.name}</p><p className="text-sm text-ink-500 mt-1">{item.species}{item.breed ? ` · ${item.breed}` : ''}</p><p className="text-xs text-ink-400 mt-1">{item.sex || 'الجنس غير محدد'}</p></button>)}{!selected.animals?.length && <p className="text-sm text-ink-400 py-6">لا توجد حيوانات مرتبطة بهذا العميل</p>}</div>
+          {canReceive && <section className="mt-6 border-t pt-4"><div className="flex items-center justify-between"><div><h3 className="font-bold">الرصيد المستحق</h3><p className="text-lg font-bold text-amber-700 mt-1">{balance} {balanceCurrency}</p></div>{moneyIsPositive(balance) && <button onClick={() => setReceiveOpen(true)} className="bg-brand-600 text-white rounded-lg px-3 py-2 text-sm">استلام دفعة</button>}</div><div className="mt-3 space-y-2">{openInvoices.map((row) => <div key={row.id} className="flex justify-between border rounded-lg px-3 py-2 text-sm"><span>{row.invoiceNumber}</span><span>متبقي {row.remainingAmount} {row.currency}</span></div>)}{!openInvoices.length && <p className="text-xs text-ink-400">لا توجد فواتير مستحقة.</p>}</div></section>}
           {animal && <div className="mt-4 rounded-xl bg-ink-50 p-4"><div className="flex justify-between"><div><h4 className="font-bold">{animal.name}</h4><p className="text-sm text-ink-500">{animal.species}{animal.breed ? ` · ${animal.breed}` : ''} · {animal.sex || 'غير محدد'}</p><p className="text-sm text-ink-500">{animal.microchip ? `Microchip: ${animal.microchip}` : ''}</p></div><button onClick={() => setAnimal(null)} className="text-sm text-brand-700">إغلاق</button></div><p className="text-xs text-ink-400 mt-3">سيظهر التاريخ السريري هنا عند تفعيل سجل الزيارات البيطري.</p></div>}
         </>}
       </section>
@@ -103,9 +116,14 @@ export default function Customers() {
         <button disabled={busy || !animalForm.speciesId} className="w-full bg-brand-600 text-white rounded-lg py-2.5">{busy ? 'جارِ الحفظ…' : 'حفظ الحيوان'}</button>
       </form>
     </Modal>
+    <Modal open={receiveOpen} onClose={() => setReceiveOpen(false)} title="استلام دفعة من العميل">
+      <form onSubmit={receivePayment} className="space-y-3" dir="rtl"><label className="block text-sm">المبلغ<input required inputMode="decimal" value={receiveForm.amount} onChange={(e) => setReceiveForm((f) => ({ ...f, amount: e.target.value }))} className="block w-full mt-1 border rounded-lg px-3 py-2" /></label><label className="block text-sm">طريقة الدفع<select value={receiveForm.method} onChange={(e) => setReceiveForm((f) => ({ ...f, method: e.target.value }))} className="block w-full mt-1 border rounded-lg px-3 py-2"><option value="cash">نقدي</option><option value="card">بطاقة</option><option value="wallet">محفظة</option><option value="other">أخرى</option></select></label><p className="text-xs text-ink-500">سيتم توزيع المبلغ على أقدم الفواتير المستحقة أولًا.</p><button disabled={busy} className="w-full bg-brand-600 text-white rounded-lg py-2.5">تأكيد استلام الدفعة</button></form>
+    </Modal>
   </Layout>;
 }
 
 function Field({ label, value, onChange, type = 'text', required = false }: { label: string; value: string; onChange: (value: string) => void; type?: string; required?: boolean }) {
   return <label className="block text-sm text-ink-600">{label}<input type={type} required={required} value={value} onChange={(e) => onChange(e.target.value)} className="w-full mt-1 border rounded-lg px-3 py-2" /></label>;
 }
+
+function moneyIsPositive(value: string) { return /^\d+(?:\.\d{1,2})?$/.test(value) && BigInt(value.split('.')[0]) * 100n + BigInt((value.split('.')[1] ?? '').padEnd(2,'0')) > 0n; }
