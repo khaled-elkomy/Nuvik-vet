@@ -14,6 +14,20 @@ function badRequest(res: import('express').Response, message: string) {
   return res.status(400).json({ error: message });
 }
 
+function normalizeAnimalSex(value: unknown): string | null {
+  if (value == null || value === '') return null;
+  if (value === 'ذكر') return 'male';
+  if (value === 'أنثى') return 'female';
+  if (value === 'غير معروف') return 'unknown';
+  return ['male', 'female', 'unknown'].includes(String(value)) ? String(value) : 'unknown';
+}
+
+function validatedAnimalSex(value: unknown): string | null | undefined {
+  if (value === undefined) return null;
+  if (value === null || value === '') return null;
+  return ['male', 'female', 'unknown'].includes(String(value)) ? String(value) : undefined;
+}
+
 customersAnimalsRouter.get('/customers', async (req, res) => {
   if (!req.auth!.permissions.some((p) => ['customers.animals.manage', 'clinical.records.read'].includes(p))) {
     return res.status(403).json({ error: 'لا تملك صلاحية الوصول لهذا الإجراء' });
@@ -63,7 +77,7 @@ customersAnimalsRouter.get('/customers/:customerId', async (req, res) => {
       ORDER BY a.name`,
     [req.params.customerId, req.auth!.clinicId, req.auth!.branchId],
   );
-  res.json({ ...customer.rows[0], animals: animals.rows });
+  res.json({ ...customer.rows[0], animals: animals.rows.map((animal) => ({ ...animal, sex: normalizeAnimalSex(animal.sex) })) });
 });
 
 customersAnimalsRouter.patch('/customers/:customerId', customerWrite, async (req, res) => {
@@ -165,7 +179,7 @@ customersAnimalsRouter.get('/animals', async (req, res) => {
       ORDER BY a.name LIMIT 100`,
     [req.auth!.clinicId, req.auth!.branchId, customerId, q],
   );
-  res.json(rows.rows);
+  res.json(rows.rows.map((animal) => ({ ...animal, sex: normalizeAnimalSex(animal.sex) })));
 });
 
 customersAnimalsRouter.post('/animals', customerWrite, async (req, res) => {
@@ -173,6 +187,8 @@ customersAnimalsRouter.post('/animals', customerWrite, async (req, res) => {
   const speciesId = String(req.body?.speciesId ?? '');
   const customerId = String(req.body?.ownerCustomerId ?? '');
   if (!name || !speciesId || !customerId) return badRequest(res, 'اسم الحيوان والنوع والمالك الأساسي مطلوبة');
+  const sex = validatedAnimalSex(req.body?.sex);
+  if (sex === undefined) return badRequest(res, 'قيمة الجنس غير صحيحة');
   const breedId = nullableText(req.body?.breedId);
   let dateOfBirth = nullableText(req.body?.dateOfBirth);
   let birthDateEstimated = false;
@@ -194,11 +210,11 @@ customersAnimalsRouter.post('/animals', customerWrite, async (req, res) => {
       `INSERT INTO animals (clinic_id,branch_id,name,species_id,breed_id,date_of_birth,birth_date_estimated,sex,microchip,identifier,notes)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
        RETURNING id,name,species_id AS "speciesId",breed_id AS "breedId",date_of_birth AS "dateOfBirth",sex,microchip,identifier,status`,
-      [req.auth!.clinicId, req.auth!.branchId, name, speciesId, breedId, dateOfBirth, birthDateEstimated, nullableText(req.body?.sex), nullableText(req.body?.microchip), nullableText(req.body?.identifier), nullableText(req.body?.notes)],
+      [req.auth!.clinicId, req.auth!.branchId, name, speciesId, breedId, dateOfBirth, birthDateEstimated, sex, nullableText(req.body?.microchip), nullableText(req.body?.identifier), nullableText(req.body?.notes)],
     );
     await client.query(`INSERT INTO animal_owners (clinic_id,branch_id,animal_id,customer_id,is_primary) VALUES ($1,$2,$3,$4,true)`, [req.auth!.clinicId, req.auth!.branchId, animal.rows[0].id, customerId]);
     await client.query('COMMIT');
-    res.status(201).json({ ...animal.rows[0], ownerCustomerId: customerId });
+    res.status(201).json({ ...animal.rows[0], sex: normalizeAnimalSex(animal.rows[0].sex), ownerCustomerId: customerId });
   } catch (error: any) {
     await client.query('ROLLBACK');
     if (error.code === '23505') return res.status(409).json({ error: 'رقم الشريحة أو المعرف مستخدم بالفعل' });
@@ -230,12 +246,14 @@ customersAnimalsRouter.get('/animals/:animalId', async (req, res) => {
       WHERE i.clinic_id=$1 AND i.branch_id=$2 AND i.customer_id=ANY($3::uuid[]) AND i.finalized_at IS NOT NULL
       ORDER BY i.finalized_at DESC LIMIT 10`, [req.auth!.clinicId, req.auth!.branchId, ownerIds],
   ) : { rows: [] };
-  res.json({ ...animal.rows[0], owners: owners.rows, recentInvoices: recentInvoices.rows, clinicalHistory: [] });
+  res.json({ ...animal.rows[0], sex: normalizeAnimalSex(animal.rows[0].sex), owners: owners.rows, recentInvoices: recentInvoices.rows, clinicalHistory: [] });
 });
 
 customersAnimalsRouter.patch('/animals/:animalId', customerWrite, async (req, res) => {
   const name = req.body?.name === undefined ? null : String(req.body.name).trim();
   if (name === '') return badRequest(res, 'اسم الحيوان مطلوب');
+  const sex = validatedAnimalSex(req.body?.sex);
+  if (sex === undefined) return badRequest(res, 'قيمة الجنس غير صحيحة');
   const current = await pool.query(`SELECT species_id,breed_id FROM animals WHERE id=$1 AND clinic_id=$2 AND branch_id=$3 AND status='active'`, [req.params.animalId, req.auth!.clinicId, req.auth!.branchId]);
   if (!current.rows[0]) return res.status(404).json({ error: 'الحيوان غير موجود أو غير نشط' });
   const speciesId = String(req.body?.speciesId ?? current.rows[0].species_id);
@@ -256,11 +274,11 @@ customersAnimalsRouter.patch('/animals/:animalId', customerWrite, async (req, re
      RETURNING id,name,species_id AS "speciesId",breed_id AS "breedId",date_of_birth AS "dateOfBirth",sex,microchip,identifier,status,notes`,
     [req.params.animalId, req.auth!.clinicId, req.auth!.branchId, name, req.body?.speciesId ?? null,
       req.body?.breedId !== undefined, breedId,
-      req.body?.sex !== undefined, nullableText(req.body?.sex), req.body?.microchip !== undefined, nullableText(req.body?.microchip),
+      req.body?.sex !== undefined, sex, req.body?.microchip !== undefined, nullableText(req.body?.microchip),
       req.body?.identifier !== undefined, nullableText(req.body?.identifier), req.body?.notes !== undefined, nullableText(req.body?.notes)],
   );
   if (!result.rows[0]) return res.status(404).json({ error: 'الحيوان غير موجود أو غير نشط' });
-  res.json(result.rows[0]);
+    res.json({ ...result.rows[0], sex: normalizeAnimalSex(result.rows[0].sex) });
   } catch (error: any) {
     if (error.code === '23505') return res.status(409).json({ error: 'رقم الشريحة أو المعرف مستخدم بالفعل' });
     throw error;

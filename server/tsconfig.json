@@ -22,6 +22,7 @@
     "src/demo.integration.test.ts",
     "src/pos.integration.test.ts",
     "src/ux.integration.test.ts",
+    "src/demoData.ts",
     "src/bootstrap.ts",
     "src/db.ts",
     "src/env.ts",

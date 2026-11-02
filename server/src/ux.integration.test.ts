@@ -61,7 +61,7 @@ test('demo UX: age estimate, permissions, user management, and shift scoping', a
       assert.equal(species.response.status,201);
       const customer = await call('/api/customers',{ method:'POST',headers:adminHeaders,body:JSON.stringify({ name:'Owner' }) });
       assert.equal(customer.response.status,201);
-      const created = await call('/api/animals',{ method:'POST',headers:adminHeaders,body:JSON.stringify({ name:'Rex',speciesId:species.body.id,ownerCustomerId:customer.body.id,ageYears:2,ageMonths:0 }) });
+      const created = await call('/api/animals',{ method:'POST',headers:adminHeaders,body:JSON.stringify({ name:'Rex',speciesId:species.body.id,ownerCustomerId:customer.body.id,ageYears:2,ageMonths:0,sex:'female' }) });
       assert.equal(created.response.status,201,created.body?.error);
       const profile = await call(`/api/animals/${created.body.id}`,{ headers:adminHeaders });
       assert.equal(profile.body.birthDateEstimated,true);
@@ -69,6 +69,12 @@ test('demo UX: age estimate, permissions, user management, and shift scoping', a
       const expected = new Date(`${estimateBirthDate(2,0)}T00:00:00Z`).getTime();
       assert.ok(Math.abs(actual-expected) <= 86_400_000, 'estimated date should be within one day of two years ago');
       assert.equal(profile.body.owners[0].isPrimary,true);
+      assert.equal(profile.body.sex,'female');
+      const invalidSex = await call('/api/animals',{ method:'POST',headers:adminHeaders,body:JSON.stringify({ name:'Invalid',speciesId:species.body.id,ownerCustomerId:customer.body.id,sex:'أنثى' }) });
+      assert.equal(invalidSex.response.status,400);
+      await pool.query(`UPDATE animals SET sex='ذكر' WHERE id=$1`, [created.body.id]);
+      const legacyProfile = await call(`/api/animals/${created.body.id}`,{ headers:adminHeaders });
+      assert.equal(legacyProfile.body.sex,'male');
     });
 
     await t.test('permissions union role grants; cashier role stays restricted', async () => {

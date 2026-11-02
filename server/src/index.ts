@@ -12,4 +12,4 @@ const io = new Server(httpServer, {
   },
 });
 io.on('connection', (socket) => registerSocketAuth(socket));
-httpServer.listen(env.port, () => console.log(`Nuvik Vet API listening on port ${env.port}`));
+httpServer.listen(env.port, process.env.API_HOST ?? '0.0.0.0', () => console.log(`Nuvik Vet API listening on ${process.env.API_HOST ?? '0.0.0.0'}:${env.port}`));

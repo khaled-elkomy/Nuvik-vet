@@ -8,6 +8,7 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "bootstrap": "tsx src/bootstrap.ts",
+    "demo:seed": "npm run build && node dist/demoData.js",
     "test:integration": "tsx --test src/auth.integration.test.ts"
   },
   "dependencies": {

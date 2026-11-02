@@ -25,11 +25,13 @@ export default function Pos() {
   const [busy, setBusy] = useState(false);
   const [invoice, setInvoice] = useState<any | null>(null);
   const [warnings, setWarnings] = useState<any[]>([]);
+  const [scanMessage, setScanMessage] = useState('');
   const canSell = currentUser?.permissions.includes('invoices.finalize') ?? false;
   const canPrice = currentUser?.permissions.includes('catalog.prices.manage') ?? false;
 
   const refreshShift = useCallback(async () => { try { setShift(await posApi.shift()); } catch (e) { pushToast((e as Error).message, 'error'); } }, [pushToast]);
   useEffect(() => { refreshShift(); scanRef.current?.focus(); }, [refreshShift]);
+  useEffect(() => { if (!shiftModal) focusScan(); }, [shiftModal]);
   useEffect(() => { if (customerQuery.trim()) customersApi.list(customerQuery).then(setCustomers).catch(() => setCustomers([])); else setCustomers([]); }, [customerQuery]);
 
   const totalCents = useMemo(() => cart.reduce((sum, line) => sum + lineTotal(parseQty(line.quantity), parseMoney(line.price)), 0n), [cart]);
@@ -55,20 +57,23 @@ export default function Pos() {
       return old.map((item) => item.key === row.key ? { ...item, quantity: addQty(item.quantity, '1.000') } : item);
     });
     setSearchResults([]); setScan(''); focusScan();
+    setScanMessage('');
   }
 
   function addService(product: any) {
     const row: CartLine = { key: `service:${product.id}`, variantId: null, serviceProductId: product.id, lotId: null, productName: product.name, variantName: 'خدمة', quantity: '1.000', price: String(product.defaultUnitPrice ?? '0.00'), onHand: '0', trackLots: false, lots: [], currency: product.currency };
     changeCart((old) => [...old, row]); setSearchResults([]); setScan(''); focusScan();
+    setScanMessage('');
   }
 
   async function lookup() {
     const text = scan.trim(); if (!text) return;
+    setScanMessage('');
     try {
       const item = await catalogApi.barcode(text);
       await addVariant({ id: item.productId, name: item.productName, trackLots: item.trackLots }, { id: item.variantId, sku: item.sku, name: item.variantName, price: item.price, onHand: item.onHand, currency: item.currency }, item);
     } catch {
-      try { const results = await catalogApi.products(text); setSearchResults(results); if (!results.length) pushToast('لم يُعثر على باركود أو اسم مطابق؛ جرّب البحث بالاسم', 'info'); }
+      try { const results = await catalogApi.products(text); setSearchResults(results); if (!results.length) setScanMessage(`لم يُعثر على منتج بالباركود ${text}. يمكنك تعديل الحقل والبحث بالاسم.`); }
       catch (e) { pushToast((e as Error).message, 'error'); }
     }
     focusScan();
@@ -79,7 +84,7 @@ export default function Pos() {
   function updateLot(index: number, lotId: string) { changeCart((old) => old.map((line, i) => { if (i !== index) return line; const lot = line.lots.find((x) => x.id === lotId); return { ...line, key: `${line.variantId}:${lotId}`, lotId, onHand: lot?.onHand ?? '0' }; })); }
 
   function fullCash() { setPayments([{ method: 'cash', amount: centsText(totalCents) }]); }
-  function addPayment() { setPayments((old) => [...old, { method: 'cash', amount: '' }]); }
+  function addPayment() { setPayments((old) => [...old, { method: 'cash', amount: '' }]); focusScan(); }
   function updatePayment(index: number, field: 'method' | 'amount', value: string) { setPayments((old) => old.map((payment, i) => i === index ? { ...payment, [field]: value } : payment)); }
 
   async function finalize() {
@@ -120,7 +125,8 @@ export default function Pos() {
 
       <section className="bg-white rounded-xl2 border border-ink-100 p-4 no-print">
         <label className="block text-sm font-semibold text-ink-700 mb-2">مسح الباركود أو البحث بالاسم</label>
-        <div className="relative"><Barcode size={19} className="absolute right-3 top-3 text-brand-600" /><input ref={scanRef} autoFocus value={scan} onChange={(e) => setScan(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); lookup(); } }} className="w-full pr-10 pl-3 py-3 border-2 border-brand-200 focus:border-brand-500 rounded-xl text-lg" placeholder="وجّه قارئ الباركود إلى هذا الحقل ثم Enter" /></div>
+        <div className="relative"><Barcode size={19} className="absolute right-3 top-3 text-brand-600" /><input ref={scanRef} autoFocus value={scan} onChange={(e) => { setScan(e.target.value); setScanMessage(''); }} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); lookup(); } }} className="w-full pr-10 pl-3 py-3 border-2 border-brand-200 focus:border-brand-500 rounded-xl text-lg" placeholder="وجّه قارئ الباركود إلى هذا الحقل ثم اضغط إدخال" /></div>
+        {scanMessage && <p role="status" className="mt-2 text-sm text-amber-800 bg-amber-50 rounded-lg p-3">{scanMessage} <button onClick={() => { setScan(''); setScanMessage('اكتب اسم المنتج للبحث.'); focusScan(); }} className="underline font-semibold">البحث بالاسم</button></p>}
         {!!searchResults.length && <div className="mt-2 border rounded-xl divide-y max-h-64 overflow-auto">{searchResults.map((p) => <div key={p.id} className="p-3 flex items-center justify-between"><div><p className="font-semibold">{p.name}</p><p className="text-xs text-ink-500">{p.code}</p></div>{p.isService ? <button onClick={() => addService(p)} className="text-brand-700 border rounded-lg px-3 py-1.5">إضافة خدمة · {p.defaultUnitPrice}</button> : <div className="flex gap-2 flex-wrap">{(p.variants || []).map((v: any) => <button key={v.id} onClick={() => addVariant(p, v)} className="text-brand-700 border rounded-lg px-3 py-1.5 text-sm">{v.name} · {v.price}</button>)}</div>}</div>)}</div>}
       </section>
 
@@ -138,7 +144,7 @@ export default function Pos() {
         <section className="bg-white rounded-xl2 border border-ink-100 p-4 space-y-4">
           <div><label className="text-sm font-semibold">العميل (اختياري للبيع النقدي)</label><div className="relative mt-1"><Search size={15} className="absolute right-3 top-2.5 text-ink-400" /><input value={customerQuery} onChange={(e) => setCustomerQuery(e.target.value)} placeholder="ابحث عن العميل" className="w-full pr-8 border rounded-lg px-3 py-2" /></div>{customerId && <button onClick={() => { setCustomerId(''); setCustomerQuery(''); }} className="text-xs text-red-600 mt-1">إزالة العميل</button>}{!!customers.length && <div className="border rounded-lg mt-1 max-h-32 overflow-auto">{customers.map((c) => <button key={c.id} onClick={() => { setCustomerId(c.id); setCustomerQuery(c.name); setCustomers([]); }} className="block w-full text-right px-3 py-2 hover:bg-ink-50">{c.name} <span className="text-xs text-ink-400">{c.phone}</span></button>)}</div>}</div>
           <div className="flex items-center justify-between"><h3 className="font-bold">طرق الدفع</h3><button onClick={fullCash} className="text-sm text-brand-700">دفع نقدي كامل</button></div>
-          {payments.map((p,index) => <div className="flex gap-2" key={index}><select value={p.method} onChange={(e) => updatePayment(index,'method',e.target.value)} className="border rounded-lg px-2"><option value="cash">نقدي</option><option value="card">بطاقة</option><option value="wallet">محفظة</option><option value="other">أخرى</option></select><input value={p.amount} onChange={(e) => updatePayment(index,'amount',e.target.value)} placeholder="0.00" inputMode="decimal" className="flex-1 min-w-0 border rounded-lg px-3 py-2"/><button onClick={() => setPayments((old) => old.filter((_,i) => i !== index))} className="text-red-500"><Trash2 size={16}/></button></div>)}
+          {payments.map((p,index) => <div className="flex gap-2" key={index}><select value={p.method} onChange={(e) => updatePayment(index,'method',e.target.value)} onBlur={focusScan} className="border rounded-lg px-2"><option value="cash">نقدي</option><option value="card">بطاقة</option><option value="wallet">محفظة</option><option value="other">أخرى</option></select><input value={p.amount} onChange={(e) => updatePayment(index,'amount',e.target.value)} onBlur={focusScan} placeholder="0.00" inputMode="decimal" className="flex-1 min-w-0 border rounded-lg px-3 py-2"/><button onClick={() => { setPayments((old) => old.filter((_,i) => i !== index)); focusScan(); }} className="text-red-500"><Trash2 size={16}/></button></div>)}
           <button onClick={addPayment} className="text-sm text-brand-700 inline-flex gap-1 items-center"><Plus size={15}/>إضافة دفعة</button>
           <div className="border-t pt-4 space-y-2"><Line label="الإجمالي" value={centsText(totalCents)} strong/><Line label="المدفوع" value={centsText(paidCents)}/><Line label={remaining < 0n ? 'زيادة' : 'المتبقي / آجل'} value={centsText(remaining < 0n ? -remaining : remaining)} strong={remaining > 0n}/>{remaining > 0n && <p className="text-xs text-amber-700">سيُسجل المتبقي كرصيد مستحق على العميل.</p>}</div>
           <button disabled={!canSell || busy || !cart.length || invalidQty || overpaid || (hasCash && !shift)} onClick={finalize} className="w-full rounded-xl bg-brand-600 text-white py-3 font-bold disabled:opacity-40">{busy ? 'جارِ إتمام البيع…' : 'تأكيد البيع'}</button>
