@@ -3,8 +3,8 @@ import { Activity, UsersRound, ShoppingBasket, Settings, UserCog, LogOut, X } fr
 import { useApp } from '../context/AppContext';
 
 const items = [
-  { label: 'العملاء والحيوانات', icon: UsersRound, permissions: ['customers.animals.manage', 'clinical.records.read'], soon: true },
-  { label: 'المتجر ونقطة البيع', icon: ShoppingBasket, permissions: ['catalog.read', 'invoices.draft.manage'], soon: true },
+  { label: 'العملاء والحيوانات', icon: UsersRound, permissions: ['customers.animals.manage', 'clinical.records.read'], to: '/customers' },
+  { label: 'الكتالوج والمخزون', icon: ShoppingBasket, permissions: ['catalog.read', 'catalog.prices.manage', 'goods_receipts.post', 'invoices.draft.manage', 'invoices.finalize'], to: '/products' },
   { label: 'الإعدادات', icon: Settings, permissions: ['settings.manage'], soon: true },
   { label: 'المستخدمون', icon: UserCog, permissions: ['users.manage'], to: '/users' },
 ];

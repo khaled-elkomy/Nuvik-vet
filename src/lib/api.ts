@@ -76,6 +76,42 @@ export const usersAdminApi = {
   deactivate: (userId: string) => request<void>(`/users/${userId}/deactivate`, { method: 'PATCH' }),
 };
 
+export const customersApi = {
+  list: (q = '') => request<any[]>(`/customers?q=${encodeURIComponent(q)}`),
+  get: (id: string) => request<any>(`/customers/${encodeURIComponent(id)}`),
+  create: (data: any) => request<any>('/customers', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: any) => request<any>(`/customers/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deactivate: (id: string) => request<void>(`/customers/${encodeURIComponent(id)}/deactivate`, { method: 'PATCH' }),
+};
+
+export const animalsApi = {
+  list: (q = '', customerId = '') => request<any[]>(`/animals?q=${encodeURIComponent(q)}&customerId=${encodeURIComponent(customerId)}`),
+  get: (id: string) => request<any>(`/animals/${encodeURIComponent(id)}`),
+  create: (data: any) => request<any>('/animals', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: any) => request<any>(`/animals/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deactivate: (id: string) => request<void>(`/animals/${encodeURIComponent(id)}/deactivate`, { method: 'PATCH' }),
+};
+
+export const speciesApi = {
+  list: () => request<any[]>('/species'),
+  create: (data: { code: string; label: string }) => request<any>('/species', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: { code?: string; label?: string }) => request<any>(`/species/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  breeds: (id: string) => request<any[]>(`/species/${encodeURIComponent(id)}/breeds`),
+  createBreed: (id: string, data: { code: string; label: string }) => request<any>(`/species/${encodeURIComponent(id)}/breeds`, { method: 'POST', body: JSON.stringify(data) }),
+  updateBreed: (id: string, data: { code?: string; label?: string }) => request<any>(`/breeds/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(data) }),
+};
+
+export const catalogApi = {
+  products: (q = '') => request<any[]>(`/products?q=${encodeURIComponent(q)}`),
+  product: (id: string) => request<any>(`/products/${encodeURIComponent(id)}`),
+  barcode: (barcode: string) => request<any>(`/products/barcode/${encodeURIComponent(barcode)}`),
+  createProduct: (data: any) => request<any>('/products', { method: 'POST', body: JSON.stringify(data) }),
+  updateProduct: (id: string, data: any) => request<any>(`/products/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deactivateProduct: (id: string) => request<void>(`/products/${encodeURIComponent(id)}/deactivate`, { method: 'PATCH' }),
+  addVariant: (id: string, data: any) => request<any>(`/products/${encodeURIComponent(id)}/variants`, { method: 'POST', body: JSON.stringify(data) }),
+  openingStock: (variantId: string, data: any) => request<any>(`/products/${encodeURIComponent(variantId)}/opening-stock`, { method: 'POST', body: JSON.stringify(data) }),
+};
+
 // ===== Patients =====
 export const patientsApi = {
   list: (q?: string) => request<any[]>(`/patients${q ? `?q=${encodeURIComponent(q)}` : ''}`),

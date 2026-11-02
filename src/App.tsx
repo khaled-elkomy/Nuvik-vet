@@ -5,6 +5,8 @@ import ToastContainer from './components/Toast';
 import Login from './pages/Login';
 import Layout from './components/Layout';
 import Users from './pages/Users';
+import Customers from './pages/Customers';
+import Products from './pages/Products';
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const { isAuthenticated, authLoading } = useApp();
@@ -16,6 +18,18 @@ function UserManagement() {
   const { currentUser } = useApp();
   if (!currentUser?.permissions.includes('users.manage')) return <Navigate to="/no-access" replace />;
   return <Users />;
+}
+
+function CustomersManagement() {
+  const { currentUser } = useApp();
+  if (!currentUser?.permissions.some((p) => ['customers.animals.manage', 'clinical.records.read'].includes(p))) return <Navigate to="/no-access" replace />;
+  return <Customers />;
+}
+
+function CatalogManagement() {
+  const { currentUser } = useApp();
+  if (!currentUser?.permissions.some((p) => ['catalog.read', 'invoices.draft.manage', 'invoices.finalize'].includes(p))) return <Navigate to="/no-access" replace />;
+  return <Products />;
 }
 
 function Landing() {
@@ -32,6 +46,8 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/users" element={<RequireAuth><UserManagement /></RequireAuth>} />
+      <Route path="/customers" element={<RequireAuth><CustomersManagement /></RequireAuth>} />
+      <Route path="/products" element={<RequireAuth><CatalogManagement /></RequireAuth>} />
       <Route path="/no-access" element={<RequireAuth><NoAccess /></RequireAuth>} />
       <Route path="/" element={<RequireAuth><Landing /></RequireAuth>} />
       <Route path="*" element={<RequireAuth><Landing /></RequireAuth>} />

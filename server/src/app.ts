@@ -4,6 +4,8 @@ import cors from 'cors';
 import { env } from './env.js';
 import { authRouter } from './routes/auth.routes.js';
 import { usersRouter } from './routes/users.routes.js';
+import { customersAnimalsRouter } from './routes/customersAnimals.routes.js';
+import { catalogRouter } from './routes/catalog.routes.js';
 
 export function createApp() {
   const app = express();
@@ -19,6 +21,8 @@ export function createApp() {
   app.get('/api/health', (_req, res) => res.json({ ok: true, service: 'nuvik-vet-api' }));
   app.use('/api/auth', authRouter);
   app.use('/api/users', usersRouter);
+  app.use('/api', customersAnimalsRouter);
+  app.use('/api', catalogRouter);
   // Legacy Human Clinic routers are intentionally not mounted until rewired to the new schema.
   app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     console.error('API request failed', err);
