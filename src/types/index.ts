@@ -95,7 +95,10 @@ export interface AuthUser {
   id: string;
   fullName: string;
   email: string;
-  role: UserRole;
+  clinicId: string;
+  branchId: string;
+  permissions: string[];
+  role?: UserRole;
   specialty?: string | null;
 }
 

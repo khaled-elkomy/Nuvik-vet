@@ -1,5 +1,6 @@
 node_modules
 dist
+.local/
 .DS_Store
 *.local
 
@@ -23,3 +24,5 @@ server/login.json
 !.env.nuvik.example
 !server/.env.example
 server/.env
+server/.env.local
+.env.local

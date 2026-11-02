@@ -59,12 +59,21 @@ export async function fetchAuthedBlobUrl(apiPath: string): Promise<string> {
 
 // ===== Auth =====
 export const authApi = {
-  login: (email: string, password: string, role: 'reception' | 'doctor') =>
-    request<{ token: string; user: any }>('/auth/login', {
+  login: (email: string, password: string, clinicCode?: string) =>
+    request<{ token: string; user: { id: string; displayName: string; email: string; clinicId: string; branchId: string; permissions: string[] } }>('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password, role }),
+      body: JSON.stringify({ email, password, clinicCode }),
     }),
   me: () => request<{ user: any }>('/auth/me'),
+};
+
+export const usersAdminApi = {
+  list: () => request<any[]>('/users'),
+  create: (data: { displayName: string; email: string; password: string }) =>
+    request<any>('/users', { method: 'POST', body: JSON.stringify(data) }),
+  assignRole: (userId: string, roleCode: string) =>
+    request<void>(`/users/${userId}/roles`, { method: 'POST', body: JSON.stringify({ roleCode }) }),
+  deactivate: (userId: string) => request<void>(`/users/${userId}/deactivate`, { method: 'PATCH' }),
 };
 
 // ===== Patients =====

@@ -1,17 +1,19 @@
-export type UserRole = 'reception' | 'doctor';
-
-export interface AuthUser {
-  id: string;
-  fullName: string;
-  email: string;
-  role: UserRole;
-  specialty?: string | null;
+export interface RequestAuth {
+  userId: string;
+  clinicId: string;
+  branchId: string;
+  permissions: string[];
 }
 
-// نوسّع Express.Request عشان نضيف بيانات المستخدم بعد فحص التوكن
+export interface AuthUser extends RequestAuth {
+  displayName: string;
+  email: string;
+}
+
 declare global {
   namespace Express {
     interface Request {
+      auth?: RequestAuth;
       user?: AuthUser;
     }
   }

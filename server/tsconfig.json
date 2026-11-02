@@ -12,5 +12,17 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false
   },
-  "include": ["src"]
+  "include": [
+    "src/app.ts",
+    "src/auth.integration.test.ts",
+    "src/bootstrap.ts",
+    "src/db.ts",
+    "src/env.ts",
+    "src/index.ts",
+    "src/middleware/auth.ts",
+    "src/routes/auth.routes.ts",
+    "src/routes/users.routes.ts",
+    "src/socket.ts",
+    "src/types.ts"
+  ]
 }
