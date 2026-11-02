@@ -8,6 +8,7 @@ interface AppContextValue {
   currentUser: AuthUser | null;
   login: (email: string, password: string, clinicCode?: string) => Promise<void>;
   logout: () => void;
+  refreshCurrentUser: () => Promise<void>;
   patients: Patient[];
   patientsLoading: boolean;
   refreshPatients: () => Promise<void>;
@@ -52,17 +53,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setAuthToken(token);
     setCurrentUser({ ...user, fullName: user.displayName });
   };
+  const refreshCurrentUser = async () => {
+    if (!getAuthToken()) return;
+    const { user } = await authApi.me();
+    setCurrentUser({ ...user, fullName: user.displayName });
+  };
   const logout = () => { setAuthToken(null); setCurrentUser(null); };
 
   const value = useMemo<AppContextValue>(() => ({
-    authLoading, isAuthenticated: !!currentUser, currentUser, login, logout,
+    authLoading, isAuthenticated: !!currentUser, currentUser, login, logout, refreshCurrentUser,
     patients: [], patientsLoading: false, refreshPatients: async () => {},
     addPatient: () => notReady(), getPatient: () => undefined,
     appointments: [], appointmentsLoading: false, refreshAppointments: async () => {},
     addAppointment: () => notReady(), cancelAppointment: () => notReady(),
     rescheduleAppointment: () => notReady(), checkinAppointment: () => notReady(),
     toasts, pushToast, dismissToast,
-  }), [authLoading, currentUser, login, logout, pushToast, dismissToast, toasts]);
+  }), [authLoading, currentUser, login, logout, refreshCurrentUser, pushToast, dismissToast, toasts]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }

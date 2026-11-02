@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { pool } from '../db.js';
 import { requireAuth, requirePermission } from '../middleware/auth.js';
+import { estimateBirthDate } from '../lib/estimatedBirthDate.js';
 
 export const customersAnimalsRouter = Router();
 customersAnimalsRouter.use(requireAuth);
@@ -172,13 +173,19 @@ customersAnimalsRouter.post('/animals', customerWrite, async (req, res) => {
   const speciesId = String(req.body?.speciesId ?? '');
   const customerId = String(req.body?.ownerCustomerId ?? '');
   if (!name || !speciesId || !customerId) return badRequest(res, 'اسم الحيوان والنوع والمالك الأساسي مطلوبة');
+  const breedId = nullableText(req.body?.breedId);
+  let dateOfBirth = nullableText(req.body?.dateOfBirth);
+  let birthDateEstimated = false;
+  if (!dateOfBirth && (req.body?.ageYears !== undefined || req.body?.ageMonths !== undefined)) {
+    try { dateOfBirth = estimateBirthDate(Number(req.body.ageYears ?? 0), Number(req.body.ageMonths ?? 0)); birthDateEstimated = true; }
+    catch (error: any) { return badRequest(res, error.message || 'العمر التقريبي غير صالح'); }
+  }
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     const species = await client.query(`SELECT id FROM species WHERE id=$1 AND clinic_id=$2 AND branch_id=$3 AND active`, [speciesId, req.auth!.clinicId, req.auth!.branchId]);
     const owner = await client.query(`SELECT id FROM customers WHERE id=$1 AND clinic_id=$2 AND branch_id=$3 AND active`, [customerId, req.auth!.clinicId, req.auth!.branchId]);
     if (!species.rows[0] || !owner.rows[0]) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'النوع أو العميل غير صالح' }); }
-    const breedId = nullableText(req.body?.breedId);
     if (breedId) {
       const breed = await client.query(`SELECT id FROM breeds WHERE id=$1 AND clinic_id=$2 AND branch_id=$3 AND species_id=$4 AND active`, [breedId, req.auth!.clinicId, req.auth!.branchId, speciesId]);
       if (!breed.rows[0]) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'السلالة لا تتبع النوع المحدد' }); }
@@ -187,7 +194,7 @@ customersAnimalsRouter.post('/animals', customerWrite, async (req, res) => {
       `INSERT INTO animals (clinic_id,branch_id,name,species_id,breed_id,date_of_birth,birth_date_estimated,sex,microchip,identifier,notes)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
        RETURNING id,name,species_id AS "speciesId",breed_id AS "breedId",date_of_birth AS "dateOfBirth",sex,microchip,identifier,status`,
-      [req.auth!.clinicId, req.auth!.branchId, name, speciesId, breedId, nullableText(req.body?.dateOfBirth), Boolean(req.body?.birthDateEstimated), nullableText(req.body?.sex), nullableText(req.body?.microchip), nullableText(req.body?.identifier), nullableText(req.body?.notes)],
+      [req.auth!.clinicId, req.auth!.branchId, name, speciesId, breedId, dateOfBirth, birthDateEstimated, nullableText(req.body?.sex), nullableText(req.body?.microchip), nullableText(req.body?.identifier), nullableText(req.body?.notes)],
     );
     await client.query(`INSERT INTO animal_owners (clinic_id,branch_id,animal_id,customer_id,is_primary) VALUES ($1,$2,$3,$4,true)`, [req.auth!.clinicId, req.auth!.branchId, animal.rows[0].id, customerId]);
     await client.query('COMMIT');
@@ -216,7 +223,14 @@ customersAnimalsRouter.get('/animals/:animalId', async (req, res) => {
       WHERE ao.animal_id=$1 AND ao.clinic_id=$2 AND ao.branch_id=$3 ORDER BY ao.valid_to NULLS FIRST,ao.is_primary DESC,ao.valid_from DESC`,
     [req.params.animalId, req.auth!.clinicId, req.auth!.branchId],
   );
-  res.json({ ...animal.rows[0], owners: owners.rows, clinicalHistory: [] });
+  const ownerIds = owners.rows.filter((owner) => owner.validTo == null).map((owner) => owner.customerId);
+  const recentInvoices = ownerIds.length ? await pool.query(
+    `SELECT i.id,i.invoice_number AS "invoiceNumber",i.status,i.total::text,i.currency,i.finalized_at AS "finalizedAt",c.name AS "customerName"
+       FROM invoices i JOIN customers c ON c.id=i.customer_id AND c.clinic_id=i.clinic_id AND c.branch_id=i.branch_id
+      WHERE i.clinic_id=$1 AND i.branch_id=$2 AND i.customer_id=ANY($3::uuid[]) AND i.finalized_at IS NOT NULL
+      ORDER BY i.finalized_at DESC LIMIT 10`, [req.auth!.clinicId, req.auth!.branchId, ownerIds],
+  ) : { rows: [] };
+  res.json({ ...animal.rows[0], owners: owners.rows, recentInvoices: recentInvoices.rows, clinicalHistory: [] });
 });
 
 customersAnimalsRouter.patch('/animals/:animalId', customerWrite, async (req, res) => {

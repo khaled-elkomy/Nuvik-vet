@@ -9,6 +9,7 @@ import Customers from './pages/Customers';
 import Products from './pages/Products';
 import Pos from './pages/Pos';
 import Invoices from './pages/Invoices';
+import Shifts from './pages/Shifts';
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const { isAuthenticated, authLoading } = useApp();
@@ -46,6 +47,12 @@ function InvoiceManagement() {
   return <Invoices />;
 }
 
+function ShiftManagement() {
+  const { currentUser } = useApp();
+  if (!currentUser?.permissions.some((p) => ['payments.receive', 'users.manage'].includes(p))) return <Navigate to="/no-access" replace />;
+  return <Shifts />;
+}
+
 function Landing() {
   const { currentUser } = useApp();
   return <Navigate to={currentUser?.permissions.includes('users.manage') ? '/users' : '/no-access'} replace />;
@@ -64,6 +71,7 @@ export default function App() {
       <Route path="/products" element={<RequireAuth><CatalogManagement /></RequireAuth>} />
       <Route path="/pos" element={<RequireAuth><PointOfSale /></RequireAuth>} />
       <Route path="/invoices" element={<RequireAuth><InvoiceManagement /></RequireAuth>} />
+      <Route path="/shifts" element={<RequireAuth><ShiftManagement /></RequireAuth>} />
       <Route path="/no-access" element={<RequireAuth><NoAccess /></RequireAuth>} />
       <Route path="/" element={<RequireAuth><Landing /></RequireAuth>} />
       <Route path="*" element={<RequireAuth><Landing /></RequireAuth>} />

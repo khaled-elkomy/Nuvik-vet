@@ -73,7 +73,10 @@ export const usersAdminApi = {
     request<any>('/users', { method: 'POST', body: JSON.stringify(data) }),
   assignRole: (userId: string, roleCode: string) =>
     request<void>(`/users/${userId}/roles`, { method: 'POST', body: JSON.stringify({ roleCode }) }),
+  removeRole: (userId: string, roleCode: string) => request<void>(`/users/${userId}/roles/${encodeURIComponent(roleCode)}`, { method: 'DELETE' }),
   deactivate: (userId: string) => request<void>(`/users/${userId}/deactivate`, { method: 'PATCH' }),
+  update: (userId: string, data: { displayName?: string; active?: boolean }) => request<any>(`/users/${userId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  resetPassword: (userId: string, password: string) => request<void>(`/users/${userId}/password-reset`, { method: 'POST', body: JSON.stringify({ password }) }),
 };
 
 export const customersApi = {
@@ -115,6 +118,8 @@ export const catalogApi = {
 
 export const posApi = {
   shift: () => request<any>('/pos/shift'),
+  shifts: (date = '') => request<any[]>(`/pos/shifts${date ? `?date=${encodeURIComponent(date)}` : ''}`),
+  shiftDetail: (id: string) => request<any>(`/pos/shifts/${encodeURIComponent(id)}`),
   openShift: (openingCash: string) => request<any>('/pos/shifts/open', { method: 'POST', body: JSON.stringify({ openingCash }) }),
   closeShift: (shiftId: string, countedCash: string) => request<any>(`/pos/shifts/${encodeURIComponent(shiftId)}/close`, { method: 'POST', body: JSON.stringify({ countedCash }) }),
   finalizeSale: (data: any, idempotencyKey: string) => request<any>('/pos/sales', { method: 'POST', headers: { 'Idempotency-Key': idempotencyKey }, body: JSON.stringify(data) }),

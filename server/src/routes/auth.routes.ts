@@ -65,12 +65,15 @@ authRouter.post('/login', async (req, res) => {
 
   failures.delete(key);
   const grants = await pool.query(
-    `SELECT DISTINCT p.code
-       FROM user_roles ur
-       JOIN roles r ON r.id = ur.role_id AND r.clinic_id = ur.clinic_id
-       JOIN role_permissions rp ON rp.role_id = r.id AND rp.clinic_id = r.clinic_id
-       JOIN permissions p ON p.id = rp.permission_id
-      WHERE ur.user_id = $1 AND ur.clinic_id = $2`,
+    `SELECT DISTINCT p.code FROM permissions p
+      WHERE EXISTS (
+        SELECT 1 FROM user_roles ur JOIN roles r ON r.id=ur.role_id AND r.clinic_id=ur.clinic_id
+         WHERE ur.user_id=$1 AND ur.clinic_id=$2 AND r.code='admin'
+      ) OR EXISTS (
+        SELECT 1 FROM user_roles ur JOIN roles r ON r.id=ur.role_id AND r.clinic_id=ur.clinic_id
+        JOIN role_permissions rp ON rp.role_id=r.id AND rp.clinic_id=r.clinic_id
+         WHERE ur.user_id=$1 AND ur.clinic_id=$2 AND rp.permission_id=p.id
+      )`,
     [row.id, row.clinic_id],
   );
   await recordLoginAudit(row.clinic_id, row.branch_id, row.id, true);

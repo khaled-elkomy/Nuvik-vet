@@ -14,11 +14,43 @@ const requirePayments = requirePermission('payments.receive');
 
 posRouter.get('/pos/shift', requirePayments, async (req, res) => {
   const shift = await pool.query(
-    `SELECT id,status,currency,opened_at AS "openedAt",opening_cash::text AS "openingCash"
-       FROM cashier_shifts WHERE clinic_id=$1 AND branch_id=$2 AND cashier_id=$3 AND status='open'`,
+    `SELECT s.id,s.status,s.currency,s.opened_at AS "openedAt",s.opening_cash::text AS "openingCash",
+            (s.opening_cash+COALESCE((SELECT sum(p.amount) FROM payments p WHERE p.cashier_shift_id=s.id AND p.clinic_id=s.clinic_id AND p.branch_id=s.branch_id AND p.method='cash' AND p.status='captured'),0))::text AS "expectedCash"
+       FROM cashier_shifts s WHERE s.clinic_id=$1 AND s.branch_id=$2 AND s.cashier_id=$3 AND s.status='open'`,
     [req.auth!.clinicId, req.auth!.branchId, req.auth!.userId],
   );
   res.json(shift.rows[0] ?? null);
+});
+
+posRouter.get('/pos/shifts', anyPermission('payments.receive', 'users.manage'), async (req, res) => {
+  const date = String(req.query.date ?? '').trim();
+  if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: 'صيغة التاريخ غير صحيحة' });
+  const canViewAll = req.auth!.permissions.includes('users.manage');
+  const result = await pool.query(
+    `SELECT s.id,s.cashier_id AS "cashierId",u.display_name AS "cashierName",s.opened_at AS "openedAt",s.opening_cash::text AS "openingCash",
+            s.closed_at AS "closedAt",s.expected_cash::text AS "expectedCash",s.counted_cash::text AS "countedCash",s.variance::text AS difference,s.status,s.currency,
+            COALESCE((SELECT jsonb_object_agg(t.method,t.total) FROM (SELECT method,sum(amount)::text AS total FROM payments WHERE cashier_shift_id=s.id AND clinic_id=s.clinic_id AND branch_id=s.branch_id AND status='captured' GROUP BY method) t),'{}'::jsonb) AS "paymentTotals"
+       FROM cashier_shifts s JOIN users u ON u.id=s.cashier_id AND u.clinic_id=s.clinic_id
+      WHERE s.clinic_id=$1 AND s.branch_id=$2 AND ($3::boolean OR s.cashier_id=$4)
+        AND ($5='' OR (s.opened_at AT TIME ZONE 'Africa/Cairo')::date=$5::date)
+      ORDER BY s.opened_at DESC LIMIT 200`,
+    [req.auth!.clinicId, req.auth!.branchId, canViewAll, req.auth!.userId, date],
+  );
+  res.json(result.rows);
+});
+
+posRouter.get('/pos/shifts/:shiftId', anyPermission('payments.receive', 'users.manage'), async (req, res) => {
+  const canViewAll = req.auth!.permissions.includes('users.manage');
+  const result = await pool.query(
+    `SELECT s.id,s.cashier_id AS "cashierId",u.display_name AS "cashierName",s.opened_at AS "openedAt",s.opening_cash::text AS "openingCash",
+            s.closed_at AS "closedAt",s.expected_cash::text AS "expectedCash",s.counted_cash::text AS "countedCash",s.variance::text AS difference,s.status,s.currency,
+            COALESCE((SELECT jsonb_object_agg(t.method,t.total) FROM (SELECT method,sum(amount)::text AS total FROM payments WHERE cashier_shift_id=s.id AND clinic_id=s.clinic_id AND branch_id=s.branch_id AND status='captured' GROUP BY method) t),'{}'::jsonb) AS "paymentTotals"
+       FROM cashier_shifts s JOIN users u ON u.id=s.cashier_id AND u.clinic_id=s.clinic_id
+      WHERE s.id=$1 AND s.clinic_id=$2 AND s.branch_id=$3 AND ($4::boolean OR s.cashier_id=$5)`,
+    [req.params.shiftId, req.auth!.clinicId, req.auth!.branchId, canViewAll, req.auth!.userId],
+  );
+  if (!result.rows[0]) return res.status(404).json({ error: 'الوردية غير موجودة' });
+  res.json(result.rows[0]);
 });
 
 posRouter.post('/pos/shifts/open', requirePayments, async (req, res) => {

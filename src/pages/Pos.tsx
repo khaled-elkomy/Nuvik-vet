@@ -114,7 +114,7 @@ export default function Pos() {
   return <Layout title="نقطة البيع">
     <div dir="rtl" className="space-y-4 pos-screen">
       <div className="bg-white rounded-xl2 border border-ink-100 p-4 flex items-center justify-between gap-3 no-print">
-        <div><p className="font-bold text-ink-800">وردية الصندوق</p><p className="text-sm text-ink-500">{shift ? `مفتوحة · رصيد البداية ${shift.openingCash} ${shift.currency}` : 'لا توجد وردية مفتوحة'}</p></div>
+        <div><p className="font-bold text-ink-800">وردية الصندوق</p><p className="text-sm text-ink-500">{shift ? `مفتوحة منذ ${cairoDateTime(shift.openedAt)} · رصيد البداية ${shift.openingCash} ${shift.currency}` : 'لا توجد وردية مفتوحة'}</p></div>
         {!shift ? <button onClick={() => { setCashValue('0.00'); setShiftModal('open'); }} className="bg-brand-600 text-white px-4 py-2 rounded-lg">فتح وردية</button> : <button onClick={() => { setCashValue(''); setShiftModal('close'); }} className="border border-red-200 text-red-700 px-4 py-2 rounded-lg">إغلاق الوردية</button>}
       </div>
 
@@ -151,12 +151,13 @@ export default function Pos() {
       <div className="hidden"><Wallet /></div>
     </div>
     <Modal open={!!shiftModal} onClose={() => setShiftModal(null)} title={shiftModal === 'open' ? 'فتح وردية الصندوق' : 'إغلاق وردية الصندوق'}>
-      <div className="space-y-4" dir="rtl">{shiftModal === 'close' && <p className="text-sm text-ink-500">المتوقع = النقدية الافتتاحية + المدفوعات النقدية المسجلة في هذه الوردية.</p>}<label className="block text-sm">{shiftModal === 'open' ? 'النقدية الافتتاحية' : 'النقدية المعدودة'}<input autoFocus value={cashValue} onChange={(e) => setCashValue(e.target.value)} inputMode="decimal" className="block w-full border rounded-lg px-3 py-2 mt-1" /></label><button disabled={busy} onClick={saveShift} className="w-full bg-brand-600 text-white rounded-lg py-2.5">تأكيد</button></div>
+      <div className="space-y-4" dir="rtl">{shiftModal === 'close' && <><p className="text-sm text-ink-500">بدأت الوردية: {cairoDateTime(shift?.openedAt)}</p><Line label="المتوقع نقدًا" value={`${shift?.expectedCash ?? shift?.openingCash ?? '0.00'} ${shift?.currency ?? ''}`} /><p className="text-xs text-ink-500">المتوقع = النقدية الافتتاحية + المدفوعات النقدية المسجلة في هذه الوردية.</p></>}<label className="block text-sm">{shiftModal === 'open' ? 'النقدية الافتتاحية' : 'النقدية المعدودة'}<input autoFocus value={cashValue} onChange={(e) => setCashValue(e.target.value)} inputMode="decimal" className="block w-full border rounded-lg px-3 py-2 mt-1" /></label>{shiftModal === 'close' && /^\d+(?:\.\d{1,2})?$/.test(cashValue) && <Line label="الفرق بعد العدّ" value={`${centsText(parseMoney(cashValue)-parseMoney(shift?.expectedCash ?? shift?.openingCash ?? '0'))} ${shift?.currency ?? ''}`} strong />}<button disabled={busy} onClick={saveShift} className="w-full bg-brand-600 text-white rounded-lg py-2.5">تأكيد</button></div>
     </Modal>
   </Layout>;
 }
 
 function Line({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) { return <div className={`flex justify-between ${strong ? 'font-bold text-ink-900' : 'text-ink-600'}`}><span>{label}</span><span>{value}</span></div>; }
+function cairoDateTime(value?: string) { return value ? new Intl.DateTimeFormat('ar-EG', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Africa/Cairo' }).format(new Date(value)) : '—'; }
 function parseMoney(value: string): bigint { if (!/^(?:0|[1-9]\d{0,11})(?:\.\d{1,2})?$/.test(String(value).trim())) return 0n; const [whole, frac = ''] = String(value).trim().split('.'); return BigInt(whole) * 100n + BigInt(frac.padEnd(2,'0')); }
 function safeMoney(value: string): bigint { return parseMoney(value); }
 function centsText(cents: bigint): string { const sign = cents < 0n ? '-' : ''; const abs = cents < 0n ? -cents : cents; return `${sign}${abs / 100n}.${String(abs % 100n).padStart(2,'0')}`; }
